@@ -1086,7 +1086,12 @@ function showSaveStatus(message, type) {
   el.classList.remove("hidden");
 }
 
+function isStorageAvailable() {
+  return typeof window !== "undefined" && window.storage && typeof window.storage.set === "function";
+}
+
 async function loadChildIndex() {
+  if (!isStorageAvailable()) return [];
   try {
     const result = await window.storage.get(CHILD_INDEX_KEY, false);
     return result ? JSON.parse(result.value) : [];
@@ -1096,7 +1101,10 @@ async function loadChildIndex() {
 }
 
 async function saveChildIndex(list) {
-  await window.storage.set(CHILD_INDEX_KEY, JSON.stringify(list), false);
+  const result = await window.storage.set(CHILD_INDEX_KEY, JSON.stringify(list), false);
+  if (!result) {
+    throw new Error("child index save returned no result");
+  }
 }
 
 function collectFormState() {
@@ -1351,7 +1359,7 @@ async function loadChildData(key) {
     calculateAndRender();
     document.getElementById("saveStatus").classList.add("hidden");
   } catch (err) {
-    showSaveStatus("불러오기 중 오류가 발생했습니다.", "error");
+    showSaveStatus(`불러오기 중 오류가 발생했습니다: ${err && err.message ? err.message : String(err)}`, "error");
   }
 }
 
@@ -1365,12 +1373,19 @@ async function saveCurrentChild() {
     showSaveStatus("검사일을 먼저 입력해주세요. (같은 아동의 검사 회차를 구분하는 기준입니다)", "error");
     return;
   }
+  if (!isStorageAvailable()) {
+    showSaveStatus("저장 기능을 사용할 수 없는 화면입니다. 클로드 대화창의 결과지(아티팩트) 화면에서 다시 시도해주세요.", "error");
+    return;
+  }
 
   const slug = slugifyName(state.childName);
   const key = `pres_child_data:${slug}_${state.birthDate || "nodate"}_${state.testDate}`;
 
   try {
-    await window.storage.set(key, JSON.stringify(state), false);
+    const setResult = await window.storage.set(key, JSON.stringify(state), false);
+    if (!setResult) {
+      throw new Error("storage.set returned no result");
+    }
 
     const list = await loadChildIndex();
     const existing = list.find(entry => entry.key === key);
@@ -1388,7 +1403,8 @@ async function saveCurrentChild() {
     await refreshTabs();
     showSaveStatus(`"${state.childName}" (${formatDate(state.testDate)}) 검사 결과가 저장되었습니다.`, "success");
   } catch (err) {
-    showSaveStatus("저장 중 오류가 발생했습니다. 다시 시도해주세요.", "error");
+    const detail = err && err.message ? err.message : String(err);
+    showSaveStatus(`저장 중 오류가 발생했습니다: ${detail}`, "error");
   }
 }
 
