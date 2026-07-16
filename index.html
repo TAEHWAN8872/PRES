@@ -58,6 +58,25 @@ body {
   margin-bottom: 18px;
 }
 
+.sub-tab-bar {
+  margin-top: -12px;
+  margin-bottom: 18px;
+  padding: 10px 12px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+}
+
+.sub-tab-bar .tab-btn {
+  background: #fff;
+  font-size: 0.8rem;
+  padding: 5px 13px;
+}
+
+.sub-tab-bar .tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
 .tab-btn {
   border: 1px solid var(--line);
   background: var(--card-bg);
@@ -361,7 +380,8 @@ body {
 
   <!-- 저장된 아동 탭 -->
   <div id="childTabBar" class="tab-bar"></div>
-  <p id="tabEmptyNote" class="tab-empty-note hidden">저장된 아동이 아직 없습니다. 아동명을 입력하고 결과 계산 후 "이 아동 저장"을 눌러주세요.</p>
+  <div id="childDateTabBar" class="tab-bar sub-tab-bar hidden"></div>
+  <p id="tabEmptyNote" class="tab-empty-note hidden">저장된 검사 기록이 아직 없습니다. 아동명과 검사일을 입력하고 결과 계산 후 "이 아동 저장"을 눌러주세요.</p>
 
   <!-- 1. 아동 기본정보 -->
   <section class="card">
@@ -1025,21 +1045,52 @@ function clearFormState() {
 }
 
 let activeChildKey = null;
+let selectedChildName = null;
 
-async function renderChildTabs() {
+async function refreshTabs() {
+  const list = await loadChildIndex();
+  renderNameTabs(list);
+  renderDateTabs(list);
+}
+
+function renderNameTabs(list) {
   const tabBar = document.getElementById("childTabBar");
   const emptyNote = document.getElementById("tabEmptyNote");
-  const list = await loadChildIndex();
-
   tabBar.innerHTML = "";
   emptyNote.classList.toggle("hidden", list.length > 0);
 
-  list.forEach(entry => {
+  const names = [...new Set(list.map(entry => entry.name))].sort((a, b) => a.localeCompare(b, "ko"));
+
+  names.forEach(name => {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "tab-btn" + (entry.key === activeChildKey ? " active" : "");
-    btn.textContent = entry.name;
-    btn.addEventListener("click", () => loadChild(entry.key));
+    btn.className = "tab-btn" + (name === selectedChildName ? " active" : "");
+    btn.addEventListener("click", async () => {
+      selectedChildName = name;
+      const sessions = list
+        .filter(entry => entry.name === name)
+        .sort((a, b) => (a.testDate || "").localeCompare(b.testDate || ""));
+      const latest = sessions[sessions.length - 1];
+      if (latest) {
+        await loadChildData(latest.key);
+      }
+      await refreshTabs();
+    });
+
+    const label = document.createElement("span");
+    label.textContent = name;
+    btn.appendChild(label);
+
+    const closeBtn = document.createElement("span");
+    closeBtn.className = "tab-close";
+    closeBtn.textContent = "✕";
+    closeBtn.title = "이 아동의 저장된 기록 모두 삭제";
+    closeBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await deleteChild(name, list);
+    });
+    btn.appendChild(closeBtn);
+
     tabBar.appendChild(btn);
   });
 
@@ -1048,25 +1099,162 @@ async function renderChildTabs() {
   newBtn.className = "tab-btn new-tab";
   newBtn.textContent = "+ 새 아동";
   newBtn.addEventListener("click", () => {
+    selectedChildName = null;
     activeChildKey = null;
     clearFormState();
-    renderChildTabs();
+    refreshTabs();
   });
   tabBar.appendChild(newBtn);
 }
 
-async function loadChild(key) {
+function renderDateTabs(list) {
+  const dateBar = document.getElementById("childDateTabBar");
+  dateBar.innerHTML = "";
+
+  if (!selectedChildName) {
+    dateBar.classList.add("hidden");
+    return;
+  }
+  dateBar.classList.remove("hidden");
+
+  const sessions = list
+    .filter(entry => entry.name === selectedChildName)
+    .sort((a, b) => (a.testDate || "").localeCompare(b.testDate || ""));
+
+  sessions.forEach(entry => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tab-btn" + (entry.key === activeChildKey ? " active" : "");
+    btn.addEventListener("click", async () => {
+      await loadChildData(entry.key);
+      await refreshTabs();
+    });
+
+    const label = document.createElement("span");
+    label.textContent = entry.testDate ? formatDate(entry.testDate) : "날짜 미입력";
+    btn.appendChild(label);
+
+    const closeBtn = document.createElement("span");
+    closeBtn.className = "tab-close";
+    closeBtn.textContent = "✕";
+    closeBtn.title = "이 검사 기록 삭제";
+    closeBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await deleteSession(entry.key, list);
+    });
+    btn.appendChild(closeBtn);
+
+    dateBar.appendChild(btn);
+  });
+
+  const newSessionBtn = document.createElement("button");
+  newSessionBtn.type = "button";
+  newSessionBtn.className = "tab-btn new-tab";
+  newSessionBtn.textContent = "+ 새 검사";
+  newSessionBtn.addEventListener("click", () => {
+    activeChildKey = null;
+    startNewSessionForCurrentChild();
+    refreshTabs();
+  });
+  dateBar.appendChild(newSessionBtn);
+}
+
+// 검사 회차 1건 삭제
+async function deleteSession(key, list) {
+  const confirmed = confirm("이 검사 기록을 삭제하시겠습니까? 삭제하면 되돌릴 수 없습니다.");
+  if (!confirmed) return;
+
+  try {
+    await window.storage.delete(key, false);
+  } catch (err) {
+    // 이미 없는 경우 등은 무시하고 인덱스만 정리
+  }
+
+  const newList = list.filter(entry => entry.key !== key);
+  await saveChildIndex(newList);
+
+  if (activeChildKey === key) {
+    activeChildKey = null;
+    const remaining = newList
+      .filter(entry => entry.name === selectedChildName)
+      .sort((a, b) => (a.testDate || "").localeCompare(b.testDate || ""));
+    if (remaining.length > 0) {
+      await loadChildData(remaining[remaining.length - 1].key);
+    } else {
+      selectedChildName = null;
+      clearFormState();
+    }
+  }
+
+  await refreshTabs();
+  showSaveStatus("검사 기록이 삭제되었습니다.", "success");
+}
+
+// 아동 1명의 저장된 검사 기록 전체 삭제
+async function deleteChild(name, list) {
+  const sessions = list.filter(entry => entry.name === name);
+  const confirmed = confirm(`"${name}" 아동의 저장된 검사 기록 ${sessions.length}건을 모두 삭제하시겠습니까? 삭제하면 되돌릴 수 없습니다.`);
+  if (!confirmed) return;
+
+  try {
+    for (const session of sessions) {
+      await window.storage.delete(session.key, false);
+    }
+  } catch (err) {
+    // 개별 삭제 실패는 무시하고 인덱스는 정리
+  }
+
+  const newList = list.filter(entry => entry.name !== name);
+  await saveChildIndex(newList);
+
+  if (selectedChildName === name) {
+    selectedChildName = null;
+    activeChildKey = null;
+    clearFormState();
+  }
+
+  await refreshTabs();
+  showSaveStatus(`"${name}" 아동의 기록이 모두 삭제되었습니다.`, "success");
+}
+
+
+// 이름/생년월일은 유지한 채 검사일, 원점수, 결과만 비워서 같은 아동의 새 검사 회차를 입력할 수 있게 함
+function startNewSessionForCurrentChild() {
+  document.getElementById("childName").value = selectedChildName || "";
+  document.getElementById("testDate").value = "";
+  document.getElementById("receptiveRaw").value = "";
+  document.getElementById("expressiveRaw").value = "";
+
+  document.getElementById("rRaw").textContent = "-";
+  document.getElementById("eRaw").textContent = "-";
+  document.getElementById("rAge").textContent = "-";
+  document.getElementById("eAge").textContent = "-";
+  document.getElementById("rPercentile").textContent = "-";
+  document.getElementById("ePercentile").textContent = "-";
+  document.getElementById("combinedAge").textContent = "-";
+  document.getElementById("resChildName").textContent = "-";
+  document.getElementById("resChronoAge").textContent = "-";
+  document.getElementById("resTestDate").textContent = "-";
+  document.getElementById("tableWarning").classList.add("hidden");
+  document.getElementById("rCurveLabel").textContent = "계산 후 표시됩니다";
+  document.getElementById("eCurveLabel").textContent = "계산 후 표시됩니다";
+  renderPercentileCurve("rCurveSvg", null);
+  renderPercentileCurve("eCurveSvg", null);
+  document.getElementById("saveStatus").classList.add("hidden");
+}
+
+// 저장된 데이터를 폼에 불러오기만 함 (탭 다시 그리기는 호출부에서 refreshTabs로 처리)
+async function loadChildData(key) {
   try {
     const result = await window.storage.get(key, false);
     if (!result) {
-      showSaveStatus("해당 아동 데이터를 찾을 수 없습니다.", "error");
+      showSaveStatus("해당 검사 기록을 찾을 수 없습니다.", "error");
       return;
     }
     const state = JSON.parse(result.value);
     applyFormState(state);
     activeChildKey = key;
     calculateAndRender();
-    renderChildTabs();
     document.getElementById("saveStatus").classList.add("hidden");
   } catch (err) {
     showSaveStatus("불러오기 중 오류가 발생했습니다.", "error");
@@ -1079,9 +1267,13 @@ async function saveCurrentChild() {
     showSaveStatus("아동명을 먼저 입력해주세요.", "error");
     return;
   }
+  if (!state.testDate) {
+    showSaveStatus("검사일을 먼저 입력해주세요. (같은 아동의 검사 회차를 구분하는 기준입니다)", "error");
+    return;
+  }
 
   const slug = slugifyName(state.childName);
-  const key = `pres_child_data:${slug}_${state.birthDate || "nodate"}`;
+  const key = `pres_child_data:${slug}_${state.birthDate || "nodate"}_${state.testDate}`;
 
   try {
     await window.storage.set(key, JSON.stringify(state), false);
@@ -1090,15 +1282,17 @@ async function saveCurrentChild() {
     const existing = list.find(entry => entry.key === key);
     if (existing) {
       existing.name = state.childName;
+      existing.testDate = state.testDate;
     } else {
-      list.push({ key, name: state.childName });
+      list.push({ key, name: state.childName, testDate: state.testDate });
     }
     await saveChildIndex(list);
 
+    selectedChildName = state.childName;
     activeChildKey = key;
     calculateAndRender();
-    renderChildTabs();
-    showSaveStatus(`"${state.childName}" 아동이 저장되었습니다.`, "success");
+    await refreshTabs();
+    showSaveStatus(`"${state.childName}" (${formatDate(state.testDate)}) 검사 결과가 저장되었습니다.`, "success");
   } catch (err) {
     showSaveStatus("저장 중 오류가 발생했습니다. 다시 시도해주세요.", "error");
   }
@@ -1107,7 +1301,7 @@ async function saveCurrentChild() {
 document.getElementById("saveBtn").addEventListener("click", saveCurrentChild);
 
 // 초기 로드 시 저장된 아동 탭 표시
-renderChildTabs();
+refreshTabs();
 
 </script>
 </body>
