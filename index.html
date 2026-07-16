@@ -513,11 +513,21 @@ function getLanguageAgeMonths(raw) {
 function lookupPercentile(table, domain, totalMonths, raw) {
   if (!table || table.length === 0 || totalMonths === null || raw === null || isNaN(raw)) return null;
   const band = table.find(row => totalMonths >= row.minMonths && totalMonths <= row.maxMonths);
-  if (!band) return null; // 매뉴얼상 2세 미만/6세 6개월 이상 등 표 범위 밖
+  if (!band) return null; // 생활연령이 표 범위(2:0~6:5) 밖
   const scoreMap = band[domain];
   if (!scoreMap) return null;
-  const percentile = scoreMap[raw];
-  return percentile !== undefined ? percentile : null; // 해당 연령대에 값이 비어있으면 null
+
+  // 정확히 일치하는 점수가 있으면 바로 반환
+  if (scoreMap[raw] !== undefined) return scoreMap[raw];
+
+  // 없으면, raw보다 작거나 같은 점수 중 가장 큰 값을 사용 (표에서 점수 구간이 묶여있는 경우 대응)
+  const keys = Object.keys(scoreMap).map(Number).sort((a, b) => a - b);
+  let nearest = null;
+  for (const k of keys) {
+    if (k <= raw) nearest = k;
+    else break;
+  }
+  return nearest !== null ? scoreMap[nearest] : null;
 }
 
 function formatDate(dateStr) {
