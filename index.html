@@ -51,6 +51,94 @@ body {
   font-size: 0.95rem;
 }
 
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.tab-btn {
+  border: 1px solid var(--line);
+  background: var(--card-bg);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.tab-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.tab-btn.new-tab {
+  border-style: dashed;
+}
+
+.tab-btn .tab-close {
+  margin-left: 6px;
+  opacity: 0.6;
+}
+
+.tab-btn .tab-close:hover {
+  opacity: 1;
+}
+
+.tab-empty-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0 0 18px;
+}
+
+.save-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.secondary-btn {
+  margin-top: 18px;
+  background: #fff;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 11px 20px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.secondary-btn:hover {
+  opacity: 0.8;
+}
+
+.save-status {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 10px;
+}
+
+.save-status.success {
+  color: var(--accent);
+}
+
+.save-status.error {
+  color: #b3452f;
+}
+
 .card {
   background: var(--card-bg);
   border: 1px solid var(--line);
@@ -271,6 +359,10 @@ body {
     <p class="subtitle">검사 결과지</p>
   </header>
 
+  <!-- 저장된 아동 탭 -->
+  <div id="childTabBar" class="tab-bar"></div>
+  <p id="tabEmptyNote" class="tab-empty-note hidden">저장된 아동이 아직 없습니다. 아동명을 입력하고 결과 계산 후 "이 아동 저장"을 눌러주세요.</p>
+
   <!-- 1. 아동 기본정보 -->
   <section class="card">
     <h2>1. 아동 정보</h2>
@@ -307,7 +399,11 @@ body {
         <input type="number" id="expressiveRaw" min="0" max="60" placeholder="0 ~ 60" inputmode="numeric">
       </div>
     </div>
-    <button id="calcBtn" class="primary-btn">결과 계산하기</button>
+    <div class="save-row">
+      <button id="calcBtn" class="primary-btn">결과 계산하기</button>
+      <button id="saveBtn" class="secondary-btn">이 아동 저장</button>
+    </div>
+    <p id="saveStatus" class="save-status hidden"></p>
     <p id="tableWarning" class="warning hidden">
       ⚠ 백분위(규준)표가 아직 입력되지 않았습니다.
       <code>percentileTable</code>에 매뉴얼 수치를 입력해주세요.
@@ -789,8 +885,8 @@ function renderPercentileCurve(svgId, pct) {
   }
 }
 
-/* 계산 버튼 */
-document.getElementById("calcBtn").addEventListener("click", () => {
+/* 계산 로직 (계산 버튼, 탭 불러오기에서 공통으로 사용) */
+function calculateAndRender() {
   const childName = document.getElementById("childName").value.trim() || "-";
   const birthDate = document.getElementById("birthDate").value;
   const testDate = document.getElementById("testDate").value;
@@ -845,11 +941,173 @@ document.getElementById("calcBtn").addEventListener("click", () => {
 
   renderPercentileCurve("rCurveSvg", receptivePercentile);
   renderPercentileCurve("eCurveSvg", expressivePercentile);
-});
+}
+
+document.getElementById("calcBtn").addEventListener("click", calculateAndRender);
 
 // 초기 로드 시 빈 그래프 표시
 renderPercentileCurve("rCurveSvg", null);
 renderPercentileCurve("eCurveSvg", null);
+
+
+/* ==========================================================================
+   아동별 저장 / 탭 기능 (window.storage 사용, 클로드 화면 안에서 이 결과지를
+   다시 열 때마다 저장된 아동 목록과 입력값이 유지됩니다)
+   ========================================================================== */
+
+const CHILD_INDEX_KEY = "pres_child_index";
+
+function slugifyName(name) {
+  return name
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/["'\\/]/g, "")
+    .slice(0, 60);
+}
+
+function showSaveStatus(message, type) {
+  const el = document.getElementById("saveStatus");
+  el.textContent = message;
+  el.className = `save-status ${type || ""}`;
+  el.classList.remove("hidden");
+}
+
+async function loadChildIndex() {
+  try {
+    const result = await window.storage.get(CHILD_INDEX_KEY, false);
+    return result ? JSON.parse(result.value) : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+async function saveChildIndex(list) {
+  await window.storage.set(CHILD_INDEX_KEY, JSON.stringify(list), false);
+}
+
+function collectFormState() {
+  return {
+    childName: document.getElementById("childName").value.trim(),
+    birthDate: document.getElementById("birthDate").value,
+    testDate: document.getElementById("testDate").value,
+    receptiveRaw: document.getElementById("receptiveRaw").value,
+    expressiveRaw: document.getElementById("expressiveRaw").value
+  };
+}
+
+function applyFormState(state) {
+  document.getElementById("childName").value = state.childName || "";
+  document.getElementById("birthDate").value = state.birthDate || "";
+  document.getElementById("testDate").value = state.testDate || "";
+  document.getElementById("receptiveRaw").value = state.receptiveRaw || "";
+  document.getElementById("expressiveRaw").value = state.expressiveRaw || "";
+  updateChronoAgeDisplay();
+}
+
+function clearFormState() {
+  applyFormState({ childName: "", birthDate: "", testDate: "", receptiveRaw: "", expressiveRaw: "" });
+  document.getElementById("rRaw").textContent = "-";
+  document.getElementById("eRaw").textContent = "-";
+  document.getElementById("rAge").textContent = "-";
+  document.getElementById("eAge").textContent = "-";
+  document.getElementById("rPercentile").textContent = "-";
+  document.getElementById("ePercentile").textContent = "-";
+  document.getElementById("combinedAge").textContent = "-";
+  document.getElementById("resChildName").textContent = "-";
+  document.getElementById("resChronoAge").textContent = "-";
+  document.getElementById("resTestDate").textContent = "-";
+  document.getElementById("tableWarning").classList.add("hidden");
+  document.getElementById("rCurveLabel").textContent = "계산 후 표시됩니다";
+  document.getElementById("eCurveLabel").textContent = "계산 후 표시됩니다";
+  renderPercentileCurve("rCurveSvg", null);
+  renderPercentileCurve("eCurveSvg", null);
+  document.getElementById("saveStatus").classList.add("hidden");
+}
+
+let activeChildKey = null;
+
+async function renderChildTabs() {
+  const tabBar = document.getElementById("childTabBar");
+  const emptyNote = document.getElementById("tabEmptyNote");
+  const list = await loadChildIndex();
+
+  tabBar.innerHTML = "";
+  emptyNote.classList.toggle("hidden", list.length > 0);
+
+  list.forEach(entry => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tab-btn" + (entry.key === activeChildKey ? " active" : "");
+    btn.textContent = entry.name;
+    btn.addEventListener("click", () => loadChild(entry.key));
+    tabBar.appendChild(btn);
+  });
+
+  const newBtn = document.createElement("button");
+  newBtn.type = "button";
+  newBtn.className = "tab-btn new-tab";
+  newBtn.textContent = "+ 새 아동";
+  newBtn.addEventListener("click", () => {
+    activeChildKey = null;
+    clearFormState();
+    renderChildTabs();
+  });
+  tabBar.appendChild(newBtn);
+}
+
+async function loadChild(key) {
+  try {
+    const result = await window.storage.get(key, false);
+    if (!result) {
+      showSaveStatus("해당 아동 데이터를 찾을 수 없습니다.", "error");
+      return;
+    }
+    const state = JSON.parse(result.value);
+    applyFormState(state);
+    activeChildKey = key;
+    calculateAndRender();
+    renderChildTabs();
+    document.getElementById("saveStatus").classList.add("hidden");
+  } catch (err) {
+    showSaveStatus("불러오기 중 오류가 발생했습니다.", "error");
+  }
+}
+
+async function saveCurrentChild() {
+  const state = collectFormState();
+  if (!state.childName) {
+    showSaveStatus("아동명을 먼저 입력해주세요.", "error");
+    return;
+  }
+
+  const slug = slugifyName(state.childName);
+  const key = `pres_child_data:${slug}_${state.birthDate || "nodate"}`;
+
+  try {
+    await window.storage.set(key, JSON.stringify(state), false);
+
+    const list = await loadChildIndex();
+    const existing = list.find(entry => entry.key === key);
+    if (existing) {
+      existing.name = state.childName;
+    } else {
+      list.push({ key, name: state.childName });
+    }
+    await saveChildIndex(list);
+
+    activeChildKey = key;
+    calculateAndRender();
+    renderChildTabs();
+    showSaveStatus(`"${state.childName}" 아동이 저장되었습니다.`, "success");
+  } catch (err) {
+    showSaveStatus("저장 중 오류가 발생했습니다. 다시 시도해주세요.", "error");
+  }
+}
+
+document.getElementById("saveBtn").addEventListener("click", saveCurrentChild);
+
+// 초기 로드 시 저장된 아동 탭 표시
+renderChildTabs();
 
 </script>
 </body>
