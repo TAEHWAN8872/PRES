@@ -219,6 +219,40 @@ body {
   margin-top: 24px;
 }
 
+/* --- 백분위 그래프 --- */
+.curve-block {
+  margin-bottom: 22px;
+}
+
+.curve-block:last-child {
+  margin-bottom: 0;
+}
+
+.curve-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+
+.curve-title .curve-value {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.curve-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.curve-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 20px 0;
+}
+
 @media (max-width: 560px) {
   .form-grid,
   .form-grid.two-col {
@@ -317,6 +351,21 @@ body {
       <div><span>아동명</span><strong id="resChildName">-</strong></div>
       <div><span>생활연령</span><strong id="resChronoAge">-</strong></div>
       <div><span>검사일</span><strong id="resTestDate">-</strong></div>
+    </div>
+  </section>
+
+  <!-- 4. 백분위 분포 그래프 -->
+  <section class="card">
+    <h2>4. 백분위 분포 그래프</h2>
+
+    <div class="curve-block">
+      <p class="curve-title">수용언어 &nbsp;<span class="curve-value" id="rCurveLabel">계산 후 표시됩니다</span></p>
+      <svg id="rCurveSvg" class="curve-svg" viewBox="0 0 700 210" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <div class="curve-block">
+      <p class="curve-title">표현언어 &nbsp;<span class="curve-value" id="eCurveLabel">계산 후 표시됩니다</span></p>
+      <svg id="eCurveSvg" class="curve-svg" viewBox="0 0 700 210" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
   </section>
 
@@ -560,6 +609,158 @@ function updateChronoAgeDisplay() {
 document.getElementById("birthDate").addEventListener("change", updateChronoAgeDisplay);
 document.getElementById("testDate").addEventListener("change", updateChronoAgeDisplay);
 
+
+/* --------------------------------------------------------------------------
+   백분위 정규분포 그래프 그리기
+
+   참고 이미지처럼 x축에 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99 를
+   같은 간격으로 표시하고, 종 모양 곡선 위에 실제 백분위 위치를 빨간 점선
+   화살표로 표시합니다.
+--------------------------------------------------------------------------- */
+const CURVE_TICKS = [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99];
+const CURVE_MARGIN_X = 40;
+const CURVE_WIDTH = 700;
+const CURVE_PLOT_RIGHT = CURVE_WIDTH - CURVE_MARGIN_X;
+const CURVE_BASELINE_Y = 165;
+const CURVE_TOP_Y = 25;
+
+function tickX(index) {
+  const usable = CURVE_PLOT_RIGHT - CURVE_MARGIN_X;
+  return CURVE_MARGIN_X + (usable * index) / (CURVE_TICKS.length - 1);
+}
+
+// percentile(1~99) -> x좌표. 두 눈금 사이는 선형 보간.
+function percentileToX(pct) {
+  const p = Math.max(1, Math.min(99, pct));
+  for (let i = 0; i < CURVE_TICKS.length - 1; i++) {
+    const a = CURVE_TICKS[i];
+    const b = CURVE_TICKS[i + 1];
+    if (p >= a && p <= b) {
+      const ratio = b === a ? 0 : (p - a) / (b - a);
+      return tickX(i) + (tickX(i + 1) - tickX(i)) * ratio;
+    }
+  }
+  return tickX(CURVE_TICKS.length - 1);
+}
+
+// 종 모양(정규분포) 곡선의 y좌표. 시각적으로만 유사하게 구현 (가우시안 근사).
+function bellY(x) {
+  const centerX = (CURVE_MARGIN_X + CURVE_PLOT_RIGHT) / 2;
+  const halfWidth = (CURVE_PLOT_RIGHT - CURVE_MARGIN_X) / 2;
+  const sigma = halfWidth / 2.1;
+  const height = CURVE_BASELINE_Y - CURVE_TOP_Y;
+  const g = Math.exp(-Math.pow(x - centerX, 2) / (2 * sigma * sigma));
+  return CURVE_BASELINE_Y - height * g;
+}
+
+function buildBellPath() {
+  const points = [];
+  const steps = 80;
+  for (let i = 0; i <= steps; i++) {
+    const x = CURVE_MARGIN_X + ((CURVE_PLOT_RIGHT - CURVE_MARGIN_X) * i) / steps;
+    const y = bellY(x);
+    points.push(`${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`);
+  }
+  return points.join(" ");
+}
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  return el;
+}
+
+function renderPercentileCurve(svgId, pct) {
+  const svg = document.getElementById(svgId);
+  svg.innerHTML = "";
+
+  // 종 모양 곡선
+  const bellPath = svgEl("path", {
+    d: buildBellPath(),
+    fill: "none",
+    stroke: "#4a5560",
+    "stroke-width": "1.6"
+  });
+  svg.appendChild(bellPath);
+
+  // 기준선(x축)
+  svg.appendChild(svgEl("line", {
+    x1: CURVE_MARGIN_X, y1: CURVE_BASELINE_Y,
+    x2: CURVE_PLOT_RIGHT, y2: CURVE_BASELINE_Y,
+    stroke: "#9aa4ad", "stroke-width": "1.2"
+  }));
+
+  // 눈금 및 라벨
+  CURVE_TICKS.forEach((val, i) => {
+    const x = tickX(i);
+    svg.appendChild(svgEl("line", {
+      x1: x, y1: CURVE_BASELINE_Y,
+      x2: x, y2: CURVE_BASELINE_Y + 6,
+      stroke: "#9aa4ad", "stroke-width": "1"
+    }));
+    const label = svgEl("text", {
+      x: x, y: CURVE_BASELINE_Y + 20,
+      "text-anchor": "middle",
+      "font-size": "11",
+      fill: "#5b6672"
+    });
+    label.textContent = val;
+    svg.appendChild(label);
+  });
+
+  // 축 제목
+  const axisTitle = svgEl("text", {
+    x: (CURVE_MARGIN_X + CURVE_PLOT_RIGHT) / 2, y: CURVE_BASELINE_Y + 38,
+    "text-anchor": "middle", "font-size": "11", fill: "#5b6672"
+  });
+  axisTitle.textContent = "백분위(%ile)";
+  svg.appendChild(axisTitle);
+
+  const percentileLabel = svgEl("text", {
+    x: CURVE_MARGIN_X - 6, y: CURVE_BASELINE_Y + 4,
+    "text-anchor": "end", "font-size": "10", fill: "#9aa4ad"
+  });
+  percentileLabel.textContent = "";
+  svg.appendChild(percentileLabel);
+
+  // 실제 백분위 위치 표시 (빨간 점선 + 화살표 + 값)
+  if (pct !== null && !isNaN(pct)) {
+    const x = percentileToX(pct);
+    const topY = CURVE_TOP_Y - 6;
+
+    svg.appendChild(svgEl("line", {
+      x1: x, y1: topY,
+      x2: x, y2: CURVE_BASELINE_Y,
+      stroke: "#d1453b",
+      "stroke-width": "1.4",
+      "stroke-dasharray": "4,3"
+    }));
+
+    // 화살표 머리 (아래쪽을 가리킴)
+    svg.appendChild(svgEl("path", {
+      d: `M${x - 5},${CURVE_BASELINE_Y - 10} L${x + 5},${CURVE_BASELINE_Y - 10} L${x},${CURVE_BASELINE_Y} Z`,
+      fill: "#d1453b"
+    }));
+
+    const valueLabel = svgEl("text", {
+      x: x, y: topY - 6,
+      "text-anchor": "middle",
+      "font-size": "12",
+      "font-weight": "700",
+      fill: "#d1453b"
+    });
+    valueLabel.textContent = `${pct}%ile`;
+    svg.appendChild(valueLabel);
+  } else {
+    const emptyLabel = svgEl("text", {
+      x: (CURVE_MARGIN_X + CURVE_PLOT_RIGHT) / 2, y: (CURVE_TOP_Y + CURVE_BASELINE_Y) / 2,
+      "text-anchor": "middle", "font-size": "12", fill: "#9aa4ad"
+    });
+    emptyLabel.textContent = "규준표 입력 및 계산 후 표시됩니다";
+    svg.appendChild(emptyLabel);
+  }
+}
+
 /* 계산 버튼 */
 document.getElementById("calcBtn").addEventListener("click", () => {
   const childName = document.getElementById("childName").value.trim() || "-";
@@ -607,7 +808,20 @@ document.getElementById("calcBtn").addEventListener("click", () => {
   const warning = document.getElementById("tableWarning");
   const tablesEmpty = receptivePercentile === null || expressivePercentile === null;
   warning.classList.toggle("hidden", !tablesEmpty);
+
+  // 백분위 그래프 업데이트
+  document.getElementById("rCurveLabel").textContent =
+    receptivePercentile !== null ? `${receptivePercentile}%ile` : "규준표 입력 필요";
+  document.getElementById("eCurveLabel").textContent =
+    expressivePercentile !== null ? `${expressivePercentile}%ile` : "규준표 입력 필요";
+
+  renderPercentileCurve("rCurveSvg", receptivePercentile);
+  renderPercentileCurve("eCurveSvg", expressivePercentile);
 });
+
+// 초기 로드 시 빈 그래프 표시
+renderPercentileCurve("rCurveSvg", null);
+renderPercentileCurve("eCurveSvg", null);
 
 </script>
 </body>
