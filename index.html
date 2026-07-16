@@ -281,11 +281,11 @@ body {
       </div>
       <div class="field">
         <label for="birthDate">생년월일</label>
-        <input type="date" id="birthDate">
+        <input type="date" id="birthDate" min="1900-01-01" max="2099-12-31">
       </div>
       <div class="field">
         <label for="testDate">검사일</label>
-        <input type="date" id="testDate">
+        <input type="date" id="testDate" min="1900-01-01" max="2099-12-31">
       </div>
       <div class="field readonly-field">
         <label>생활연령 (CA)</label>
@@ -300,11 +300,11 @@ body {
     <div class="form-grid two-col">
       <div class="field">
         <label for="receptiveRaw">수용언어 원점수</label>
-        <input type="number" id="receptiveRaw" min="0" max="60" placeholder="0 ~ 60">
+        <input type="number" id="receptiveRaw" min="0" max="60" placeholder="0 ~ 60" inputmode="numeric">
       </div>
       <div class="field">
         <label for="expressiveRaw">표현언어 원점수</label>
-        <input type="number" id="expressiveRaw" min="0" max="60" placeholder="0 ~ 60">
+        <input type="number" id="expressiveRaw" min="0" max="60" placeholder="0 ~ 60" inputmode="numeric">
       </div>
     </div>
     <button id="calcBtn" class="primary-btn">결과 계산하기</button>
@@ -608,6 +608,34 @@ function updateChronoAgeDisplay() {
 
 document.getElementById("birthDate").addEventListener("change", updateChronoAgeDisplay);
 document.getElementById("testDate").addEventListener("change", updateChronoAgeDisplay);
+
+/* 원점수(0~60) 초과 입력 방지 */
+function clampRawScoreInput(e) {
+  const input = e.target;
+  if (input.value === "") return;
+  let val = parseInt(input.value, 10);
+  if (isNaN(val)) return;
+  if (val > 60) val = 60;
+  if (val < 0) val = 0;
+  input.value = val;
+}
+
+document.getElementById("receptiveRaw").addEventListener("input", clampRawScoreInput);
+document.getElementById("expressiveRaw").addEventListener("input", clampRawScoreInput);
+
+/* 날짜 입력 시 연도 4자리 초과 방지 (예: "20245-05-01" 방지) */
+function clampDateYearInput(e) {
+  const input = e.target;
+  if (!input.value) return;
+  const parts = input.value.split("-");
+  if (parts[0] && parts[0].length > 4) {
+    parts[0] = parts[0].slice(0, 4);
+    input.value = parts.join("-");
+  }
+}
+
+document.getElementById("birthDate").addEventListener("input", clampDateYearInput);
+document.getElementById("testDate").addEventListener("input", clampDateYearInput);
 
 
 /* --------------------------------------------------------------------------
