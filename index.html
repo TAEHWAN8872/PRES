@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRES 검사 결과지</title>
+<style>
+:root {
+  --ink: #1f2933;
+  --muted: #5b6672;
+  --line: #d8dde2;
+  --bg: #f6f7f8;
+  --card-bg: #ffffff;
+  --accent: #2f6f5e;
+  --accent-soft: #e6f0ec;
+  --warn-bg: #fdf3e7;
+  --warn-border: #e8b673;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.page-header h1 {
+  font-size: 1.35rem;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin-bottom: 20px;
+}
+
+.card h2 {
+  font-size: 1.05rem;
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--accent-soft);
+  color: var(--accent);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-grid.two-col {
+  grid-template-columns: 1fr 1fr;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.field input {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 10px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+.field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.readonly-output {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 9px 10px;
+  font-size: 0.95rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.primary-btn {
+  margin-top: 18px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 11px 20px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.primary-btn:hover {
+  opacity: 0.88;
+}
+
+.primary-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.warning {
+  margin-top: 14px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: #7a5310;
+}
+
+.warning code {
+  background: rgba(0,0,0,0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+
+.hidden {
+  display: none;
+}
+
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 18px;
+}
+
+.result-table th,
+.result-table td {
+  border: 1px solid var(--line);
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 0.92rem;
+}
+
+.result-table thead th {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.result-table tbody th {
+  background: #fafbfb;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.total-row td {
+  font-weight: 700;
+  background: var(--accent-soft);
+}
+
+.meta-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.meta-result div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+
+.meta-result span {
+  color: var(--muted);
+}
+
+.meta-result strong {
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.page-footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 24px;
+}
+
+@media (max-width: 560px) {
+  .form-grid,
+  .form-grid.two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="page-header">
+    <h1>취학전 아동의 수용언어 및 표현언어 발달척도 (PRES)</h1>
+    <p class="subtitle">검사 결과지</p>
+  </header>
+
+  <!-- 1. 아동 기본정보 -->
+  <section class="card">
+    <h2>1. 아동 정보</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="childName">아동명</label>
+        <input type="text" id="childName" placeholder="예: 홍길동">
+      </div>
+      <div class="field">
+        <label for="birthDate">생년월일</label>
+        <input type="date" id="birthDate">
+      </div>
+      <div class="field">
+        <label for="testDate">검사일</label>
+        <input type="date" id="testDate">
+      </div>
+      <div class="field readonly-field">
+        <label>생활연령 (CA)</label>
+        <div class="readonly-output" id="chronoAgeOutput">생활연령은 자동으로 기입됩니다</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 원점수 입력 -->
+  <section class="card">
+    <h2>2. 원점수(Raw Score) 입력</h2>
+    <div class="form-grid two-col">
+      <div class="field">
+        <label for="receptiveRaw">수용언어 원점수</label>
+        <input type="number" id="receptiveRaw" min="0" max="60" placeholder="0 ~ 60">
+      </div>
+      <div class="field">
+        <label for="expressiveRaw">표현언어 원점수</label>
+        <input type="number" id="expressiveRaw" min="0" max="60" placeholder="0 ~ 60">
+      </div>
+    </div>
+    <button id="calcBtn" class="primary-btn">결과 계산하기</button>
+    <p id="tableWarning" class="warning hidden">
+      ⚠ 백분위(규준)표가 아직 입력되지 않았습니다.
+      <code>percentileTable</code>에 매뉴얼 수치를 입력해주세요.
+      (수용/표현언어 획득연령은 공식으로 자동 계산됩니다.)
+    </p>
+  </section>
+
+  <!-- 3. 결과표 -->
+  <section class="card result-card">
+    <h2>3. 검사 결과</h2>
+    <table class="result-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>원점수</th>
+          <th>획득연령</th>
+          <th>백분위(%ile)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>수용언어</th>
+          <td id="rRaw">-</td>
+          <td id="rAge">-</td>
+          <td id="rPercentile">-</td>
+        </tr>
+        <tr>
+          <th>표현언어</th>
+          <td id="eRaw">-</td>
+          <td id="eAge">-</td>
+          <td id="ePercentile">-</td>
+        </tr>
+        <tr class="total-row">
+          <th>통합언어연령</th>
+          <td colspan="3" id="combinedAge">-</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="meta-result">
+      <div><span>아동명</span><strong id="resChildName">-</strong></div>
+      <div><span>생활연령</span><strong id="resChronoAge">-</strong></div>
+      <div><span>검사일</span><strong id="resTestDate">-</strong></div>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    <p>본 결과지는 PRES 검사 매뉴얼의 규준 자료를 별도로 입력해야 정확한 백분위가 산출됩니다.</p>
+  </footer>
+
+</div>
+
+<script>
+/* ==========================================================================
+   PRES(취학전 아동의 수용언어 및 표현언어 발달척도) 결과 계산 스크립트
+   ==========================================================================
+   ⚠ 수용/표현언어 획득연령은 공식(점수+18)으로 자동 계산됩니다.
+     백분위(percentileTable)는 저작권이 있는 검사 매뉴얼(학지사)의 규준
+     자료이므로 비어 있습니다. 매뉴얼을 보고 아래 형식에 맞춰 입력해주세요.
+   ========================================================================== */
+
+
+/* --------------------------------------------------------------------------
+   1) 원점수(획득점수) → 언어연령(개월) 변환
+
+   수용언어와 표현언어 모두 같은 표를 사용합니다. 확인 결과, 획득점수 1~60점
+   구간에서 아래의 선형 관계가 성립합니다 (1점→19개월, 60점→78개월).
+     언어연령(개월) = 획득점수 + 18
+   이 구간을 벗어나는 값이 있다면 languageAgeTable에 별도로 추가해서 보완하세요.
+   형식: { minRaw: 최소원점수, maxRaw: 최대원점수, age: 개월수 }
+--------------------------------------------------------------------------- */
+function languageAgeFromScore(raw) {
+  if (raw === null || isNaN(raw)) return null;
+  if (raw < 1 || raw > 60) return null; // 확인된 구간(1~60점) 밖이면 표 보완 필요
+  return raw + 18; // 언어연령(개월) = 획득점수 + 18
+}
+
+// 위 공식 구간을 벗어나는 값이 있을 경우를 위한 보완 표(현재는 비어있음)
+const languageAgeTable = [
+  // { minRaw: 0, maxRaw: 0, age: 0 },
+];
+
+
+/* --------------------------------------------------------------------------
+   2) 생활연령(CA) 구간별 + 원점수 → 백분위(%ile) 변환표
+   형식:
+   {
+     minMonths: 생활연령 구간 시작(개월),
+     maxMonths: 생활연령 구간 끝(개월),
+     domain: "receptive" 또는 "expressive",
+     scores: [ { minRaw, maxRaw, percentile }, ... ]
+   }
+   예시(가짜 수치, 참고용):
+     {
+       minMonths: 36, maxMonths: 41, domain: "receptive",
+       scores: [
+         { minRaw: 0,  maxRaw: 10, percentile: 5 },
+         { minRaw: 11, maxRaw: 15, percentile: 25 },
+       ]
+     },
+--------------------------------------------------------------------------- */
+const percentileTable = [
+  // 매뉴얼의 생활연령별 규준표를 이 형식으로 입력하세요.
+];
+
+
+/* ========================= 이하 계산 로직 (수정 불필요) ===================== */
+
+function calcChronoAge(birthDateStr, testDateStr) {
+  const birth = new Date(birthDateStr);
+  const test = new Date(testDateStr);
+  if (isNaN(birth) || isNaN(test) || test < birth) return null;
+
+  let years = test.getFullYear() - birth.getFullYear();
+  let months = test.getMonth() - birth.getMonth();
+  let days = test.getDate() - birth.getDate();
+
+  if (days < 0) {
+    months -= 1;
+  }
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  const totalMonths = years * 12 + months;
+  return { years, months, totalMonths, label: `${years};${months}` };
+}
+
+function lookupAge(table, raw) {
+  if (!table || table.length === 0 || raw === null || isNaN(raw)) return null;
+  const hit = table.find(row => raw >= row.minRaw && raw <= row.maxRaw);
+  return hit ? hit.age : null;
+}
+
+// 수용/표현언어 공통: 공식(1~60점 구간) 우선 적용, 범위를 벗어나면 보완 표 참조
+function getLanguageAgeMonths(raw) {
+  const byFormula = languageAgeFromScore(raw);
+  if (byFormula !== null) return byFormula;
+  return lookupAge(languageAgeTable, raw);
+}
+
+function lookupPercentile(table, domain, totalMonths, raw) {
+  if (!table || table.length === 0 || totalMonths === null || raw === null || isNaN(raw)) return null;
+  const band = table.find(
+    row => row.domain === domain && totalMonths >= row.minMonths && totalMonths <= row.maxMonths
+  );
+  if (!band) return null;
+  const scoreHit = band.scores.find(s => raw >= s.minRaw && raw <= s.maxRaw);
+  return scoreHit ? scoreHit.percentile : null;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  if (isNaN(d)) return "-";
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/* 생년월일 / 검사일 입력 시 생활연령 실시간 표시 */
+function updateChronoAgeDisplay() {
+  const birthDate = document.getElementById("birthDate").value;
+  const testDate = document.getElementById("testDate").value;
+  const output = document.getElementById("chronoAgeOutput");
+
+  if (!birthDate || !testDate) {
+    output.textContent = "생활연령은 자동으로 기입됩니다";
+    return;
+  }
+
+  const ca = calcChronoAge(birthDate, testDate);
+  if (!ca) {
+    output.textContent = "날짜를 확인해주세요";
+    return;
+  }
+
+  output.textContent = `${ca.label} (만 ${ca.years}세 ${ca.months}개월)`;
+}
+
+document.getElementById("birthDate").addEventListener("change", updateChronoAgeDisplay);
+document.getElementById("testDate").addEventListener("change", updateChronoAgeDisplay);
+
+/* 계산 버튼 */
+document.getElementById("calcBtn").addEventListener("click", () => {
+  const childName = document.getElementById("childName").value.trim() || "-";
+  const birthDate = document.getElementById("birthDate").value;
+  const testDate = document.getElementById("testDate").value;
+  const receptiveRaw = parseInt(document.getElementById("receptiveRaw").value, 10);
+  const expressiveRaw = parseInt(document.getElementById("expressiveRaw").value, 10);
+
+  const ca = calcChronoAge(birthDate, testDate);
+  const totalMonths = ca ? ca.totalMonths : null;
+
+  // 원점수 -> 언어연령(개월) (수용/표현언어 동일 표 사용)
+  const receptiveAgeMonths = getLanguageAgeMonths(receptiveRaw);
+  const expressiveAgeMonths = getLanguageAgeMonths(expressiveRaw);
+
+  // 원점수 + 생활연령 -> 백분위 (※ 별도 규준표 확인 필요, 하단 안내 참고)
+  const receptivePercentile = lookupPercentile(percentileTable, "receptive", totalMonths, receptiveRaw);
+  const expressivePercentile = lookupPercentile(percentileTable, "expressive", totalMonths, expressiveRaw);
+
+  // 통합언어연령 CLA = round((RLA + ELA) / 2)  ※ 매뉴얼 (3) 공식 그대로
+  let combinedAgeLabel = "-";
+  if (receptiveAgeMonths !== null && expressiveAgeMonths !== null) {
+    const cla = Math.round((receptiveAgeMonths + expressiveAgeMonths) / 2);
+    combinedAgeLabel = `${cla}개월`;
+  }
+
+  // 결과 표시
+  document.getElementById("rRaw").textContent = isNaN(receptiveRaw) ? "-" : receptiveRaw;
+  document.getElementById("eRaw").textContent = isNaN(expressiveRaw) ? "-" : expressiveRaw;
+  document.getElementById("rAge").textContent =
+    receptiveAgeMonths !== null ? `${receptiveAgeMonths}개월` : "환산표 필요";
+  document.getElementById("eAge").textContent =
+    expressiveAgeMonths !== null ? `${expressiveAgeMonths}개월` : "환산표 필요";
+  document.getElementById("rPercentile").textContent =
+    receptivePercentile !== null ? `${receptivePercentile}%ile` : "규준표 필요";
+  document.getElementById("ePercentile").textContent =
+    expressivePercentile !== null ? `${expressivePercentile}%ile` : "규준표 필요";
+  document.getElementById("combinedAge").textContent = combinedAgeLabel;
+
+  document.getElementById("resChildName").textContent = childName;
+  document.getElementById("resChronoAge").textContent = ca ? `${ca.label} (${ca.years}세 ${ca.months}개월)` : "-";
+  document.getElementById("resTestDate").textContent = formatDate(testDate);
+
+  // 표현언어 환산표 / 백분위(또는 규준)표가 비어있으면 경고 표시
+  // (수용언어는 공식으로 처리되므로 제외)
+  const warning = document.getElementById("tableWarning");
+  const tablesEmpty = expressiveAgeMonths === null || percentileTable.length === 0;
+  warning.classList.toggle("hidden", !tablesEmpty);
+});
+
+</script>
+</body>
+</html>
